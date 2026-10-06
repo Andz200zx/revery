@@ -12,6 +12,7 @@ const origin = process.env.APP_ORIGIN || (await rl.question('Revery HTTPS addres
 const immich = process.env.IMMICH_URL || (await rl.question('Immich internal URL: ')).trim();
 const publicUrl = process.env.IMMICH_PUBLIC_URL || (await rl.question('Immich link URL (Enter to use the internal URL): ')).trim();
 const extraOrigins = process.env.EXTRA_ORIGINS || '';
+const trustedProxies = process.env.TRUSTED_PROXIES || '';
 const alternateUrl = process.env.IMMICH_ALTERNATE_URL || '';
 const favorites = process.env.ENABLE_FAVORITES ? process.env.ENABLE_FAVORITES === 'true' : (await rl.question('Enable Immich favourites? (yes/no, default yes): ')).trim() !== 'no';
 const trash = process.env.ENABLE_TRASH ? process.env.ENABLE_TRASH === 'true' : (await rl.question('Enable reversible Immich trash? (yes/no): ')).trim() === 'yes';
@@ -38,13 +39,13 @@ const password = await hidden('Revery password, at least 15 characters (hidden):
 const confirmation = await hidden('Repeat Revery password (hidden): ');
 if (!key || password.length < 15 || password !== confirmation) throw new Error('Key required; passwords must match and contain at least 15 characters.');
 const { loadConfig } = await import('../server/config.mjs');
-loadConfig({ APP_MODE: 'live', APP_ORIGIN: origin, EXTRA_ORIGINS: extraOrigins, IMMICH_URL: immich, IMMICH_PUBLIC_URL: publicUrl, IMMICH_ALTERNATE_URL: alternateUrl, IMMICH_API_KEY: key, APP_PASSWORD: password });
+loadConfig({ APP_MODE: 'live', APP_ORIGIN: origin, EXTRA_ORIGINS: extraOrigins, TRUSTED_PROXIES: trustedProxies, IMMICH_URL: immich, IMMICH_PUBLIC_URL: publicUrl, IMMICH_ALTERNATE_URL: alternateUrl, IMMICH_API_KEY: key, APP_PASSWORD: password });
 await mkdir(resolve(root, 'secrets'), { recursive: true, mode: 0o700 });
 await mkdir(resolve(root, 'data'), { recursive: true, mode: 0o700 });
 await writeFile(resolve(root, 'secrets/immich_api_key'), key + '\n', { mode: 0o600, flag: 'wx' });
 await writeFile(resolve(root, 'secrets/app_password'), password + '\n', { mode: 0o600, flag: 'wx' });
 const entries = { APP_MODE: 'live', HOST: '127.0.0.1', PORT: '4311', APP_ORIGIN: origin,
-  EXTRA_ORIGINS: extraOrigins, IMMICH_URL: immich, IMMICH_PUBLIC_URL: publicUrl, IMMICH_ALTERNATE_URL: alternateUrl, IMMICH_API_KEY_FILE: './secrets/immich_api_key',
+  EXTRA_ORIGINS: extraOrigins, TRUSTED_PROXIES: trustedProxies, IMMICH_URL: immich, IMMICH_PUBLIC_URL: publicUrl, IMMICH_ALTERNATE_URL: alternateUrl, IMMICH_API_KEY_FILE: './secrets/immich_api_key',
   APP_PASSWORD_FILE: './secrets/app_password', ENABLE_TRASH: String(trash), ENABLE_FAVORITES: String(favorites) };
 await writeFile(resolve(root, '.env'), Object.entries(entries).map(([name, value]) => `${name}=${JSON.stringify(value)}`).join('\n') + '\n', { mode: 0o600, flag: 'wx' });
 console.log('Saved local secrets and configuration. Secrets were not printed.');

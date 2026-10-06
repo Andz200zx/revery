@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isIP } from 'node:net';
 
 function secret(env, name) {
   if (!env[`${name}_FILE`]) return env[name] ?? '';
@@ -22,6 +23,9 @@ export function loadConfig(env = process.env) {
   const port = Number(env.PORT ?? 4311);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT is invalid.');
   const secure = origin.protocol === 'https:';
+  const trustedProxies = (env.TRUSTED_PROXIES || '').split(',').map((entry) => entry.trim()).filter(Boolean)
+    .map((address) => address.startsWith('::ffff:') && isIP(address.slice(7)) === 4 ? address.slice(7) : address);
+  if (trustedProxies.some((address) => !isIP(address))) throw new Error('TRUSTED_PROXIES must contain exact IP addresses.');
   const extraOrigins = (env.EXTRA_ORIGINS || '').split(',').filter(Boolean).map((entry) => {
     const extra = new URL(entry.trim());
     if (extra.protocol !== origin.protocol || extra.hostname.includes('*') || extra.username || extra.password || extra.pathname !== '/' || extra.search || extra.hash)
@@ -44,7 +48,7 @@ export function loadConfig(env = process.env) {
       if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('Immich URLs must be HTTP(S) URLs without embedded credentials.');
     }
   }
-  return { demo, origin: origin.origin, extraOrigins, password, apiKey, host, port, secure, immichUrl, publicUrl, alternatePublicUrl,
+  return { demo, origin: origin.origin, extraOrigins, trustedProxies, password, apiKey, host, port, secure, immichUrl, publicUrl, alternatePublicUrl,
     enableTrash: demo || env.ENABLE_TRASH === 'true', enableFavorites: demo || env.ENABLE_FAVORITES === 'true', dataDir: resolve(env.DATA_DIR ?? './data'),
     distDir: resolve('dist'), demoDir: resolve(env.DEMO_DIR ?? 'public/demo') };
 }

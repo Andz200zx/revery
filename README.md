@@ -98,6 +98,7 @@ for docker, follow the container instructions below.
 | `APP_MODE` | `demo` or `live` | `demo` |
 | `APP_ORIGIN` | the exact address you open in your browser, including any port | `http://127.0.0.1:4310` |
 | `EXTRA_ORIGINS` | additional allowed addresses, separated by commas | empty |
+| `TRUSTED_PROXIES` | exact IP addresses of reverse proxies whose forwarded client addresses are trusted | empty |
 | `IMMICH_URL` | immich's base url, reachable from the revery server | required in live mode |
 | `IMMICH_PUBLIC_URL` | base url used by the primary immich photo link | `IMMICH_URL` |
 | `IMMICH_ALTERNATE_URL` | optional second immich link, for example a tailnet address | empty |
@@ -166,6 +167,8 @@ live mode requires an https browser address unless `ALLOW_HTTP=true` is explicit
 
 an existing https reverse proxy can forward requests to `http://127.0.0.1:4311`. revery serves both the frontend and api; no special path rewriting is needed. do not cache `/api/` responses. allow enough upstream time for large photographs to stream.
 
+to limit login attempts separately for each client behind a proxy, set `TRUSTED_PROXIES` to the proxy's exact connection IP as seen by revery (for a local host proxy, usually `127.0.0.1`). list every trusted hop if there are multiple proxies. the proxy must append or replace `X-Forwarded-For` with the real client address, and direct client access to revery's port must stay blocked. without this setting, clients sharing a proxy connection also share the login limit. never trust a proxy address that untrusted clients can use directly.
+
 you do not need to expose revery to the internet to use https. for a private network, common options are:
 
 - a domain you own, with certificate validation through dns and name resolution to your local server.
@@ -219,7 +222,7 @@ hidden, locked, offline and trashed assets are excluded. accessible stacked imag
 
 ## privacy and maintenance
 
-the api key stays on the server. private photo routes require a signed-in session and a photograph already issued to the shuffle. state-changing requests require an exact allowed origin and csrf token. sessions use httponly, samesite cookies, with secure cookies on https. failed login attempts are limited; behind a proxy, clients sharing its connection address also share that limit.
+the api key stays on the server. private photo routes require a signed-in session and a photograph already issued to the shuffle; image and favourite requests recheck current visibility and availability. state-changing requests require an exact allowed origin and csrf token. sessions use httponly, samesite cookies, with secure cookies on https. failed login attempts are limited per client address when a trusted proxy is configured.
 
 image redirects are accepted only within the configured immich api origin. there is no telemetry, third-party runtime image service or hosted font dependency. keep the app on a private network or tailnet. this is a small personal project and has not had an independent security audit. see [security reporting](SECURITY.md).
 

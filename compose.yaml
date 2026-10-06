@@ -14,6 +14,7 @@ services:
       APP_MODE: live
       APP_ORIGIN: ${APP_ORIGIN:?Set the HTTPS address you will open}
       EXTRA_ORIGINS: ${EXTRA_ORIGINS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       IMMICH_URL: ${IMMICH_URL:?Set the server-side Immich address}
       IMMICH_PUBLIC_URL: ${IMMICH_PUBLIC_URL:-}
       IMMICH_ALTERNATE_URL: ${IMMICH_ALTERNATE_URL:-}

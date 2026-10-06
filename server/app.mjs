@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { isIP } from 'node:net';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Store } from './store.mjs';
@@ -25,6 +26,21 @@ async function body(req) {
 }
 function json(res, value, status = 200) { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); }
 function uuid(value) { if (!isUuid(value)) throw new HttpError(400, 'Invalid photograph or action ID.'); return value; }
+function ipAddress(value) {
+  return value?.startsWith('::ffff:') && isIP(value.slice(7)) === 4 ? value.slice(7) : value;
+}
+function clientAddress(req, trustedProxies) {
+  const peer = ipAddress(req.socket.remoteAddress);
+  if (!trustedProxies.includes(peer)) return peer;
+  const chain = req.headers['x-forwarded-for'];
+  if (typeof chain !== 'string') return peer;
+  for (const entry of chain.split(',').reverse()) {
+    const address = ipAddress(entry.trim());
+    if (!isIP(address)) return peer;
+    if (!trustedProxies.includes(address)) return address;
+  }
+  return peer;
+}
 
 export async function createApp(config, { store = new Store(config.dataDir), immich = config.demo ? new DemoImmich() : new Immich(config) } = {}) {
   const cookieName = config.secure ? '__Host-revery' : 'revery';
@@ -40,7 +56,8 @@ export async function createApp(config, { store = new Store(config.dataDir), imm
   const attempts = new Map();
   const locks = new Set();
   const makeAsset = (asset) => config.demo ? asset : normalizeAsset(asset, config.publicUrl, config.alternatePublicUrl);
-  const available = (asset, namespace, excluded) => asset && isUuid(asset.id) && (config.demo || asset.type === 'IMAGE') && !asset.isTrashed && !asset.isOffline && !['hidden', 'locked'].includes(asset.visibility) && !store.reviewed(namespace, asset.id) && !excluded.has(asset.id);
+  const viewable = (asset) => asset?.type === 'IMAGE' && !asset.isTrashed && !asset.isOffline && !['hidden', 'locked'].includes(asset.visibility);
+  const available = (asset, namespace, excluded) => viewable(asset) && isUuid(asset.id) && !store.reviewed(namespace, asset.id) && !excluded.has(asset.id);
 
   async function locked(key, fn) {
     if (locks.has(key)) throw new HttpError(409, 'This photograph is already being updated. Try again shortly.');
@@ -72,7 +89,7 @@ export async function createApp(config, { store = new Store(config.dataDir), imm
           canTrash: config.enableTrash, canFavorite: config.demo || config.enableFavorites, secure: config.secure });
       }
       if (url.pathname === '/api/login' && req.method === 'POST') {
-        const ip = req.socket.remoteAddress;
+        const ip = clientAddress(req, config.trustedProxies || []);
         const now = Date.now();
         for (const [key, attempt] of attempts) if (attempt.until < now) attempts.delete(key);
         const attempt = attempts.get(ip) ?? { count: 0, until: now + 15 * 60000 };
@@ -140,9 +157,9 @@ export async function createApp(config, { store = new Store(config.dataDir), imm
           if (!store.wasIssued(namespace, id)) throw new HttpError(404, 'Photograph is not in your shuffle.');
           const quality = url.searchParams.get('quality') ?? 'fullsize';
           if (!['preview', 'fullsize', 'rendition'].includes(quality)) throw new HttpError(400, 'Invalid image quality.');
+          const asset = await immich.info(id);
+          if (!viewable(asset)) throw new HttpError(404, 'Photograph is unavailable.');
           if (config.demo) {
-            const asset = await immich.info(id);
-            if (!asset) throw new HttpError(404, 'Photograph is unavailable.');
             const image = await readFile(resolve(config.demoDir, quality === 'preview' ? asset.demoFile.replace('.jpg', '-preview.jpg') : asset.demoFile));
             res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'private, no-store', 'x-image-quality': 'demo', 'content-length': image.length });
             return res.end(image);
@@ -170,7 +187,7 @@ export async function createApp(config, { store = new Store(config.dataDir), imm
             if (pending && pending.id !== requestId) throw new HttpError(409, 'An earlier action needs to be retried before continuing.');
             if (!event && store.reviewed(namespace, id)) throw new HttpError(409, 'This photograph has already been reviewed.');
             const raw = await immich.info(id);
-            if (!raw || raw.type !== 'IMAGE' || ['hidden', 'locked'].includes(raw.visibility)) throw new HttpError(404, 'Photograph is unavailable.');
+            if (!raw || raw.type !== 'IMAGE' || raw.isOffline || ['hidden', 'locked'].includes(raw.visibility)) throw new HttpError(404, 'Photograph is unavailable.');
             if (!event && raw.isTrashed) throw new HttpError(409, 'This photograph is already in Immich trash.');
             if (!event) { store.begin(namespace, requestId, makeAsset(raw), input.action); event = store.event(namespace, requestId); }
             if (input.action === 'trash' && !raw.isTrashed) {
@@ -212,6 +229,7 @@ export async function createApp(config, { store = new Store(config.dataDir), imm
           if (!config.demo && !config.enableFavorites) throw new HttpError(403, 'Favourites are disabled on this server.');
           const input = await body(req); const id = uuid(input.id);
           if (typeof input.favorite !== 'boolean' || !store.wasIssued(namespace, id)) throw new HttpError(400, 'Invalid favourite request.');
+          if (!viewable(await immich.info(id))) throw new HttpError(404, 'Photograph is unavailable.');
           if (!config.demo) await immich.request(`assets/${id}`, { method: 'PUT', body: { isFavorite: input.favorite } });
           return json(res, { favorite: input.favorite });
         }

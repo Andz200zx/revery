@@ -20,6 +20,8 @@ class MockImmich {
   async info(id) { return this.assets.find((item) => item.id === id); }
   async trash(id) { this.calls.push(['trash', id]); (await this.info(id)).isTrashed = true; if (this.timeoutOnce) { this.timeoutOnce = false; throw new HttpError(502, 'Connection lost'); } }
   async restore(id) { this.calls.push(['restore', id]); (await this.info(id)).isTrashed = false; }
+  async image(id) { this.calls.push(['image', id]); return { response: new Response('photo-bytes', { headers: { 'content-type': 'image/jpeg' } }), quality: 'fullsize' }; }
+  async request(path, options) { this.calls.push([options.method, path]); return null; }
 }
 async function harness(t, overrides = {}) {
   const config = loadConfig({ APP_MODE: 'live', APP_ORIGIN: 'http://127.0.0.1', ALLOW_HTTP: 'true',
@@ -34,7 +36,7 @@ async function harness(t, overrides = {}) {
     const response = await fetch(origin + path, { method: data === undefined ? 'GET' : 'POST',
       headers: { ...(cookie ? { cookie } : {}), ...(data === undefined ? {} : { origin, 'content-type': 'application/json', 'x-csrf-token': csrf }), ...options.headers },
       body: data === undefined ? undefined : JSON.stringify(data) });
-    const result = await response.json();
+    const result = response.headers.get('content-type')?.startsWith('application/json') ? await response.json() : await response.text();
     return { status: response.status, result, headers: response.headers };
   }
   async function login() {
@@ -77,6 +79,23 @@ test('bad passwords are rate limited', async (t) => {
   const app = await harness(t);
   for (let i = 0; i < 8; i++) assert.equal((await app.call('/api/login', { password: 'wrong' })).status, 401);
   assert.equal((await app.call('/api/login', { password: 'wrong' })).status, 429);
+});
+test('forwarded addresses are ignored unless the proxy is trusted', async (t) => {
+  const app = await harness(t);
+  for (let i = 0; i < 8; i++) {
+    assert.equal((await app.call('/api/login', { password: 'wrong' }, { headers: { 'x-forwarded-for': `198.51.100.${i + 1}` } })).status, 401);
+  }
+  assert.equal((await app.call('/api/login', { password: 'test-password-at-least-16' }, { headers: { 'x-forwarded-for': '203.0.113.1' } })).status, 429);
+});
+test('trusted proxy clients have separate limits and spoofed prefixes do not bypass them', async (t) => {
+  const app = await harness(t, { TRUSTED_PROXIES: '127.0.0.1' });
+  for (let i = 0; i < 8; i++) {
+    assert.equal((await app.call('/api/login', { password: 'wrong' }, { headers: { 'x-forwarded-for': `203.0.113.${i + 1}, 198.51.100.10` } })).status, 401);
+  }
+  assert.equal((await app.call('/api/login', { password: 'test-password-at-least-16' }, { headers: { 'x-forwarded-for': '198.51.100.10' } })).status, 429);
+  assert.equal((await app.call('/api/login', { password: 'test-password-at-least-16' }, { headers: { 'x-forwarded-for': '198.51.100.11' } })).status, 200);
+  assert.throws(() => loadConfig({ TRUSTED_PROXIES: '127.0.0.1, proxy.local' }), /exact IP addresses/);
+  assert.deepEqual(loadConfig({ TRUSTED_PROXIES: '::ffff:127.0.0.1' }).trustedProxies, ['127.0.0.1']);
 });
 test('sessions survive a normal restart but are revoked when the password changes', async () => {
   const store = new Store(':memory:');
@@ -138,6 +157,17 @@ test('unissued photos cannot be streamed or trashed, even with a valid session',
   assert.equal((await app.call(`/api/assets/${ids[0]}/image`)).status, 404);
   assert.equal((await app.call('/api/review', { id: ids[0], action: 'trash', requestId: randomUUID() })).status, 404);
   assert.equal(app.immich.calls.length, 0);
+});
+test('issued photos cannot be streamed or favourited after becoming private or unavailable', async (t) => {
+  const app = await harness(t, { ENABLE_FAVORITES: 'true' }); await app.login(); await app.call('/api/deck');
+  assert.equal((await app.call(`/api/assets/${ids[0]}/image`)).result, 'photo-bytes');
+  assert.equal((await app.call('/api/favorite', { id: ids[0], favorite: true })).status, 200);
+  for (const changes of [{ visibility: 'hidden' }, { visibility: 'locked' }, { isOffline: true }, { isTrashed: true }]) {
+    Object.assign(app.immich.assets[0], { visibility: 'timeline', isOffline: false, isTrashed: false }, changes);
+    assert.equal((await app.call(`/api/assets/${ids[0]}/image`)).status, 404);
+    assert.equal((await app.call('/api/favorite', { id: ids[0], favorite: true })).status, 404);
+    if (!changes.isTrashed) assert.equal((await app.call('/api/review', { id: ids[0], action: 'keep', requestId: randomUUID() })).status, 404);
+  }
 });
 test('keep history persists and excludes reviewed photos; undo returns the photograph', async (t) => {
   const app = await harness(t); await app.login(); await app.call('/api/deck');
