@@ -1,0 +1,33 @@
+services:
+  revery:
+    image: revery:local
+    build: .
+    restart: unless-stopped
+    init: true
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    tmpfs: ['/tmp:size=16m,mode=1777']
+    ports: ['127.0.0.1:4311:4311']
+    environment:
+      APP_MODE: live
+      APP_ORIGIN: ${APP_ORIGIN:?Set the HTTPS address you will open}
+      EXTRA_ORIGINS: ${EXTRA_ORIGINS:-}
+      IMMICH_URL: ${IMMICH_URL:?Set the server-side Immich address}
+      IMMICH_PUBLIC_URL: ${IMMICH_PUBLIC_URL:-}
+      IMMICH_ALTERNATE_URL: ${IMMICH_ALTERNATE_URL:-}
+      IMMICH_API_KEY_FILE: /run/secrets/immich_api_key
+      APP_PASSWORD_FILE: /run/secrets/app_password
+      ENABLE_TRASH: ${ENABLE_TRASH:-false}
+      ENABLE_FAVORITES: ${ENABLE_FAVORITES:-true}
+    volumes: ['./data:/data']
+    secrets: [immich_api_key, app_password]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+secrets:
+  immich_api_key:
+    file: ./secrets/immich_api_key
+  app_password:
+    file: ./secrets/app_password

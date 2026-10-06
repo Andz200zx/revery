@@ -1,0 +1,2 @@
+/* Native serif keeps the application small and avoids third-party font requests. */
+@font-face { font-family: 'Revery Serif'; src: local('Georgia'); font-display: swap; }
