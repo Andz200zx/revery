@@ -9,6 +9,6 @@ vulnerability** page. include the affected version and a description of the
 problem. use sample data; do not include api keys, passwords, session cookies,
 private photographs or location metadata.
 
-only the latest version on `main` is maintained. normal bugs and feature
+only the latest version on `master` is maintained. normal bugs and feature
 requests can go in public issues. remove private addresses, filenames and
 metadata from screenshots and logs before posting them.
