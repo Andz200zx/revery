@@ -1,0 +1,10 @@
+documentation photographs
+
+copyright © 2026 andz200zx. all rights reserved.
+
+the photographic portions of discover-desktop.jpg, discover-mobile.jpg and
+immersive-mobile.jpg are excluded from the repository's mit licence.
+publication here does not grant permission to redistribute, modify or use
+the photographs elsewhere. contact the photographer for permission.
+
+the revery interface shown in these screenshots remains under the mit licence.

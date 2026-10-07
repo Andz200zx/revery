@@ -4,14 +4,14 @@ browse random photographs from your [immich](https://immich.app/) library, with 
 
 revery is a small, self-hosted web app. it uses svelte 5, node 24 and sqlite, with no runtime npm dependencies, analytics or external font requests. it connects to immich through the api; it does not need access to your photo folders or immich database.
 
-![the desktop discovery view, showing a bundled sample photograph](docs/images/discover-desktop.jpg)
+![the desktop discovery view, showing the mourne mountains](docs/images/discover-desktop.jpg)
 
 <p>
-  <img src="docs/images/discover-mobile.jpg" width="270" alt="the discovery view on a phone" />
-  <img src="docs/images/immersive-mobile.jpg" width="270" alt="the fullscreen photo view with controls at the bottom" />
+  <img src="docs/images/discover-mobile.jpg" width="270" alt="the discovery view on a phone, showing sunrise on the mourne coast" />
+  <img src="docs/images/immersive-mobile.jpg" width="570" alt="the fullscreen view in landscape, showing sunset at portrush" />
 </p>
 
-all screenshots use bundled sample photographs and illustrative metadata. [image credits](docs/credits.md).
+screenshots feature photographs by [andz200zx](https://github.com/Andz200zx), with recorded capture dates and broad locations. the photographs are all rights reserved; the app code is mit licensed. [image credits](docs/credits.md).
 
 ## what it does
 
@@ -246,4 +246,4 @@ bug reports and small pull requests are welcome. include the browser, immich ver
 
 ## licence
 
-the code is licensed under [mit](LICENSE). bundled sample photographs have a separate [unsplash licence and credits](docs/credits.md). revery is an independent project and is not affiliated with immich.
+the code is licensed under [mit](LICENSE). the documentation photographs are all rights reserved; see [their licence notice](docs/images/LICENSE.txt). bundled sample photographs have a separate [unsplash licence and credits](docs/credits.md). revery is an independent project and is not affiliated with immich.
